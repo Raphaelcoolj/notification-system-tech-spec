@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tech Spec: Notification System at Scale</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Fraunces:ital,wght@0,300;0,600;0,900;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: #1e1e2e;
+    --accent: #00e5a0;
+    --accent2: #7c6af7;
+    --accent3: #f7a26a;
+    --text: #e2e2f0;
+    --muted: #6b6b8a;
+    --code-bg: #0d0d16;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    line-height: 1.8;
+    min-height: 100vh;
+  }
+
+  /* Ambient background */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -30%;
+    left: -20%;
+    width: 60%;
+    height: 60%;
+    background: radial-gradient(ellipse, rgba(0,229,160,0.04) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: -20%;
+    right: -10%;
+    width: 50%;
+    height: 50%;
+    background: radial-gradient(ellipse, rgba(124,106,247,0.05) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 60px 32px 120px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  .doc-header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 40px;
+    margin-bottom: 56px;
+  }
+
+  .doc-tag {
+    display: inline-block;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid rgba(0,229,160,0.3);
+    padding: 4px 12px;
+    margin-bottom: 24px;
+    font-weight: 500;
+  }
+
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 900;
+    line-height: 1.1;
+    color: #fff;
+    margin-bottom: 20px;
+    letter-spacing: -0.02em;
+  }
+
+  h1 span {
+    color: var(--accent);
+  }
+
+  .doc-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    margin-top: 28px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .doc-meta span strong {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  /* Section headers */
+  h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  h2::before {
+    content: attr(data-num);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    border: 1px solid rgba(0,229,160,0.25);
+    padding: 2px 8px;
+    flex-shrink: 0;
+  }
+
+  h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    margin-top: 28px;
+  }
+
+  /* Sections */
+  section {
+    margin-bottom: 56px;
+    padding-bottom: 56px;
+    border-bottom: 1px solid var(--border);
+    animation: fadeUp 0.6s ease both;
+  }
+
+  section:last-of-type { border-bottom: none; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  section:nth-child(1) { animation-delay: 0.05s; }
+  section:nth-child(2) { animation-delay: 0.1s; }
+  section:nth-child(3) { animation-delay: 0.15s; }
+  section:nth-child(4) { animation-delay: 0.2s; }
+  section:nth-child(5) { animation-delay: 0.25s; }
+  section:nth-child(6) { animation-delay: 0.3s; }
+  section:nth-child(7) { animation-delay: 0.35s; }
+
+  p { color: #b0b0cc; margin-bottom: 14px; }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+
+  .card-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent2);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .card p { margin-bottom: 0; font-size: 13px; }
+
+  /* Grid */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  /* Code blocks */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    padding: 20px 24px;
+    overflow-x: auto;
+    font-size: 12px;
+    line-height: 1.7;
+    margin: 20px 0;
+    color: #c8c8e8;
+  }
+
+  .kw { color: var(--accent2); }
+  .str { color: var(--accent); }
+  .cm { color: var(--muted); font-style: italic; }
+  .num { color: var(--accent3); }
+  .fn { color: #e8b4ff; }
+
+  /* Diagram */
+  .diagram {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    padding: 28px 24px;
+    font-size: 12px;
+    line-height: 2;
+    overflow-x: auto;
+    margin: 24px 0;
+    color: #9090b8;
+  }
+
+  .diagram .highlight { color: var(--accent); font-weight: 600; }
+  .diagram .highlight2 { color: var(--accent2); font-weight: 600; }
+  .diagram .highlight3 { color: var(--accent3); font-weight: 600; }
+
+  /* Status badges */
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    font-weight: 600;
+    margin-right: 6px;
+    margin-bottom: 4px;
+  }
+
+  .badge-green { background: rgba(0,229,160,0.12); color: var(--accent); border: 1px solid rgba(0,229,160,0.25); }
+  .badge-purple { background: rgba(124,106,247,0.12); color: var(--accent2); border: 1px solid rgba(124,106,247,0.25); }
+  .badge-orange { background: rgba(247,162,106,0.12); color: var(--accent3); border: 1px solid rgba(247,162,106,0.25); }
+
+  /* Flow steps */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 20px 0;
+  }
+
+  .flow-step {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .flow-step:last-child { border-bottom: none; }
+
+  .flow-num {
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 600;
+    width: 28px;
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+
+  .flow-content { flex: 1; }
+  .flow-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .flow-desc { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+  /* Table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin: 20px 0;
+  }
+
+  th {
+    text-align: left;
+    padding: 10px 16px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+  }
+
+  td {
+    padding: 12px 16px;
+    color: #b0b0cc;
+    border-bottom: 1px solid rgba(30,30,46,0.6);
+    vertical-align: top;
+  }
+
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  td:first-child { color: var(--text); font-weight: 500; }
+
+  /* inline code */
+  code {
+    background: rgba(124,106,247,0.12);
+    color: var(--accent2);
+    padding: 2px 6px;
+    font-size: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  ul li {
+    padding: 6px 0;
+    color: #b0b0cc;
+    font-size: 13px;
+    padding-left: 18px;
+    position: relative;
+  }
+
+  ul li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-size: 11px;
+  }
+
+  .callout {
+    border-left: 3px solid var(--accent3);
+    background: rgba(247,162,106,0.06);
+    padding: 16px 20px;
+    margin: 20px 0;
+    font-size: 13px;
+    color: #c8b090;
+  }
+
+  .callout strong { color: var(--accent3); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="doc-header">
+    <div class="doc-tag">Technical Specification</div>
+    <h1>Notification System<br><span>at Scale</span></h1>
+    <p style="color: var(--muted); font-size: 13px; max-width: 560px;">
+      Architecture for a reliable, multi-channel notification service supporting push, SMS, and email delivery for 1M+ users — with no duplicates, no missed sends, and graceful provider failover.
+    </p>
+    <div class="doc-meta">
+      <span><strong>Version</strong> 1.0.0</span>
+      <span><strong>Status</strong> <span class="badge badge-green">Draft</span></span>
+      <span><strong>Channels</strong> Push · SMS · Email</span>
+      <span><strong>Scale</strong> 1M+ users</span>
+    </div>
+  </div>
+
+  <!-- 1. Overview -->
+  <section>
+    <h2 data-num="01">Overview</h2>
+    <p>
+      This document specifies the architecture of a notification delivery system capable of reliably sending push notifications, SMS, and emails to over 1 million users. The system prioritizes exactly-once delivery, graceful degradation when third-party providers fail, and horizontal scalability.
+    </p>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Core Goals</div>
+        <ul>
+          <li>No duplicate notifications sent</li>
+          <li>No missed sends under normal load</li>
+          <li>Automatic failover when providers fail</li>
+          <li>Full audit trail per notification</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">Non-Goals</div>
+        <ul>
+          <li>Real-time delivery under &lt;100ms</li>
+          <li>Building our own SMS/push infra</li>
+          <li>Rich in-app notification UI</li>
+          <li>Two-way messaging (replies)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Architecture -->
+  <section>
+    <h2 data-num="02">Architecture Overview</h2>
+    <p>The system uses an event-driven pipeline. Upstream services publish notification events to a message queue. Channel workers consume those events and dispatch to third-party providers.</p>
+
+    <div class="diagram">
+<span class="highlight">[ Any Service ]</span>  ──publish──▶  <span class="highlight2">[ Message Queue ]</span>  ──consume──▶  <span class="highlight3">[ Channel Workers ]</span>
+      (auth, trades,                 (Kafka / SQS)               Push Worker
+       alerts, etc.)                                             SMS Worker
+                                                                 Email Worker
+                                          │                          │
+                                          ▼                          ▼
+                                  <span class="highlight2">[ Notification DB ]</span>       <span class="highlight">[ Provider APIs ]</span>
+                                  (status tracking)        FCM / APNs (push)
+                                                           Twilio / Termii (SMS)
+                                                           SendGrid / SES (email)
+                                          │
+                                          ▼
+                                  <span class="highlight3">[ Dead Letter Queue ]</span>
+                                  (failed deliveries
+                                   → retry / alert)
+    </div>
+
+    <h3>Key Components</h3>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Message Queue</div>
+        <p>Kafka (preferred for scale) or AWS SQS. Decouples producers from consumers. Partitioned by <code>user_id</code> for ordering guarantees where needed.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Channel Workers</div>
+        <p>Stateless Node.js services. Horizontally scalable. Each worker owns one channel (push/SMS/email) and is deployed independently.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Notification DB</div>
+        <p>PostgreSQL table tracking every notification's lifecycle state. Source of truth for idempotency checks and reconciliation.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Dead Letter Queue</div>
+        <p>Catches messages that fail after all retries. Triggers alerting to on-call. Supports manual replay once the issue is resolved.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Data Model -->
+  <section>
+    <h2 data-num="03">Data Model</h2>
+    <h3>notifications table</h3>
+    <pre>
+<span class="kw">CREATE TABLE</span> notifications (
+  id              UUID         <span class="kw">PRIMARY KEY DEFAULT</span> gen_random_uuid(),
+  idempotency_key VARCHAR(255) <span class="kw">UNIQUE NOT NULL</span>,  <span class="cm">-- prevents duplicates</span>
+  user_id         UUID         <span class="kw">NOT NULL</span>,
+  channel         VARCHAR(10)  <span class="kw">NOT NULL</span>,       <span class="cm">-- 'push' | 'sms' | 'email'</span>
+  template_id     VARCHAR(100) <span class="kw">NOT NULL</span>,
+  payload         JSONB        <span class="kw">NOT NULL</span>,
+  status          VARCHAR(20)  <span class="kw">NOT NULL DEFAULT</span> <span class="str">'QUEUED'</span>,
+  provider        VARCHAR(50),                   <span class="cm">-- which provider was used</span>
+  provider_ref    VARCHAR(255),                  <span class="cm">-- provider's message ID</span>
+  attempt_count   INT          <span class="kw">DEFAULT</span> <span class="num">0</span>,
+  last_error      TEXT,
+  created_at      TIMESTAMPTZ  <span class="kw">DEFAULT</span> now(),
+  sent_at         TIMESTAMPTZ,
+  delivered_at    TIMESTAMPTZ
+);
+
+<span class="cm">-- Indexes for common query patterns</span>
+<span class="kw">CREATE INDEX</span> idx_notifications_user_status
+  <span class="kw">ON</span> notifications (user_id, status, created_at <span class="kw">DESC</span>);
+
+<span class="kw">CREATE INDEX</span> idx_notifications_status_created
+  <span class="kw">ON</span> notifications (status, created_at)
+  <span class="kw">WHERE</span> status <span class="kw">IN</span> (<span class="str">'QUEUED'</span>, <span class="str">'FAILED'</span>);
+    </pre>
+
+    <h3>Status Lifecycle</h3>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-num">01</div>
+        <div class="flow-content">
+          <div class="flow-title"><span class="badge badge-purple">QUEUED</span></div>
+          <div class="flow-desc">Event received and persisted. Message published to queue.</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">02</div>
+        <div class="flow-content">
+          <div class="flow-title"><span class="badge badge-orange">PROCESSING</span></div>
+          <div class="flow-desc">Worker has consumed the message and is making the provider API call.</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">03</div>
+        <div class="flow-content">
+          <div class="flow-title"><span class="badge badge-green">SENT</span></div>
+          <div class="flow-desc">Provider accepted the request and returned a success response.</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">04</div>
+        <div class="flow-content">
+          <div class="flow-title"><span class="badge badge-green">DELIVERED</span></div>
+          <div class="flow-desc">Provider webhook confirmed delivery to the device/inbox.</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">05</div>
+        <div class="flow-content">
+          <div class="flow-title"><span class="badge badge-orange">FAILED</span></div>
+          <div class="flow-desc">All retry attempts exhausted. Moved to DLQ and triggers an alert.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Idempotency -->
+  <section>
+    <h2 data-num="04">Idempotency & Duplicate Prevention</h2>
+    <p>Every notification is assigned an <code>idempotency_key</code> by the publishing service, constructed as:</p>
+    <pre>
+<span class="cm">// Format: {event_type}:{user_id}:{entity_id}:{date}</span>
+<span class="kw">const</span> key = <span class="fn">`withdrawal_complete:${userId}:${txnId}:${date}`</span>;
+    </pre>
+    <p>Before any worker dispatches to a provider, it performs an upsert:</p>
+    <pre>
+<span class="kw">INSERT INTO</span> notifications (idempotency_key, user_id, channel, ...)
+<span class="kw">VALUES</span> ($1, $2, $3, ...)
+<span class="kw">ON CONFLICT</span> (idempotency_key) <span class="kw">DO NOTHING</span>
+<span class="kw">RETURNING</span> id, status;
+
+<span class="cm">-- If status is already SENT or DELIVERED → skip. Do not call provider again.</span>
+    </pre>
+    <div class="callout">
+      <strong>Important:</strong> The idempotency check happens inside a database transaction before any external API call. If the row already exists with status SENT or DELIVERED, the worker acknowledges the queue message and exits — no provider call is made.
+    </div>
+  </section>
+
+  <!-- 5. Provider Failover -->
+  <section>
+    <h2 data-num="05">Provider Failover & Degradation</h2>
+    <p>Each channel has a primary and fallback provider. A circuit breaker per provider controls automatic routing.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Channel</th>
+          <th>Primary</th>
+          <th>Fallback</th>
+          <th>Circuit Breaker Threshold</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Push</td>
+          <td>FCM (Android) / APNs (iOS)</td>
+          <td>OneSignal</td>
+          <td>5 failures / 30s window</td>
+        </tr>
+        <tr>
+          <td>SMS</td>
+          <td>Twilio</td>
+          <td>Termii / Africa's Talking</td>
+          <td>5 failures / 30s window</td>
+        </tr>
+        <tr>
+          <td>Email</td>
+          <td>SendGrid</td>
+          <td>AWS SES</td>
+          <td>10 failures / 60s window</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Circuit Breaker States</h3>
+    <div class="diagram">
+  <span class="highlight">CLOSED</span> (normal)
+      │  5 consecutive failures
+      ▼
+  <span class="highlight3">OPEN</span> (failing — route to fallback)
+      │  60s cooldown
+      ▼
+  <span class="highlight2">HALF-OPEN</span> (test one request)
+      │  success          failure
+      ▼                    ▼
+  <span class="highlight">CLOSED</span>            <span class="highlight3">OPEN</span> (reset timer)
+    </div>
+
+    <p>Circuit breaker state is stored in Redis for shared access across all worker instances. TTL on the OPEN state key acts as the automatic reset timer.</p>
+  </section>
+
+  <!-- 6. Retry Strategy -->
+  <section>
+    <h2 data-num="06">Retry Strategy</h2>
+    <p>Transient failures (timeouts, 5xx responses) are retried with exponential backoff. Permanent failures (invalid phone number, unsubscribed email) are not retried.</p>
+
+    <pre>
+<span class="cm">// Retry schedule (attempt → delay)</span>
+<span class="kw">const</span> RETRY_DELAYS = [
+  <span class="num">30</span>,    <span class="cm">// 30 seconds</span>
+  <span class="num">120</span>,   <span class="cm">// 2 minutes</span>
+  <span class="num">600</span>,   <span class="cm">// 10 minutes</span>
+];
+
+<span class="kw">async function</span> <span class="fn">handleFailure</span>(notification, error) {
+  <span class="kw">const</span> isPermanent = <span class="fn">isPermanentError</span>(error); <span class="cm">// 400, invalid recipient, etc.</span>
+
+  <span class="kw">if</span> (isPermanent || notification.attempt_count >= <span class="num">3</span>) {
+    <span class="cm">// Move to DLQ, mark FAILED, trigger alert</span>
+    <span class="kw">await</span> <span class="fn">sendToDLQ</span>(notification);
+    <span class="kw">await</span> <span class="fn">markFailed</span>(notification.id, error.message);
+  } <span class="kw">else</span> {
+    <span class="kw">const</span> delay = RETRY_DELAYS[notification.attempt_count];
+    <span class="kw">await</span> <span class="fn">requeueWithDelay</span>(notification, delay);
+  }
+}
+    </pre>
+  </section>
+
+  <!-- 7. Scalability -->
+  <section>
+    <h2 data-num="07">Scalability Considerations</h2>
+    <div class
