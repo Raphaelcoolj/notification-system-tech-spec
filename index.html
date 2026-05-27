@@ -615,4 +615,38 @@
   <!-- 7. Scalability -->
   <section>
     <h2 data-num="07">Scalability Considerations</h2>
-    <div class
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Horizontal Scaling</div>
+        <p>Workers are stateless and scale independently per channel. During peak load (e.g., market open), the SMS worker can scale to 20 instances while push stays at 5.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Queue Partitioning</div>
+        <p>Kafka topics are partitioned by <code>user_id % N</code>. Ensures per-user ordering and even load distribution across consumer instances.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Rate Limiting</div>
+        <p>Per-user rate limits enforced in Redis (<code>notify:{userId}:{channel}:{window}</code>) to prevent notification spam and respect provider limits.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Batch Processing</div>
+        <p>Broadcast notifications (e.g., platform announcements) use a fan-out service that batches DB writes and publishes to queue in chunks of 1,000.</p>
+      </div>
+    </div>
+
+    <h3>Estimated Throughput</h3>
+    <table>
+      <thead>
+        <tr><th>Scenario</th><th>Volume</th><th>Target Latency</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Transactional (1:1)</td><td>~50K/hour</td><td>&lt; 5s end-to-end</td></tr>
+        <tr><td>Triggered alerts</td><td>~200K/hour burst</td><td>&lt; 30s</td></tr>
+        <tr><td>Broadcast (all users)</td><td>1M+</td><td>&lt; 10 minutes</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</div>
+</body>
+</html>
